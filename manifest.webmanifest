@@ -1,0 +1,18 @@
+{
+  "name": "Crash Drive V5",
+  "short_name": "Crash Drive",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#0b1220",
+  "background_color": "#0b1220",
+  "description": "Crash Drive V5 — grande ville, voitures, camions et aéroport.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

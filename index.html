@@ -1,0 +1,14 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Crash Drive V5</title><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0b1220">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 10%,#315a82,#070b12 72%);color:#fff;font-family:system-ui,Arial;display:flex;align-items:center;justify-content:center;padding:18px}.wrap{width:min(540px,100%);text-align:center}.logo{font-size:68px}h1{font-size:40px;margin:0}.sub{color:#aac1d7}.card{margin-top:16px;padding:22px;border-radius:24px;background:#101a29ed;border:1px solid #ffffff22;box-shadow:0 20px 70px #0009}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tile{padding:13px;background:#ffffff0d;border-radius:13px}.tile b{display:block;font-size:19px}button{width:100%;padding:15px;margin-top:10px;border:0;border-radius:14px;background:#2d9cff;color:white;font-size:18px;font-weight:800}.secondary{background:#1b2a3e!important}.small{font-size:12px;color:#91a5ba;line-height:1.45}
+</style></head><body><main class="wrap"><div class="logo">🚗💥</div><h1>CRASH DRIVE</h1><div class="sub">VERSION 5 • GRANDE VILLE</div>
+<div class="card"><div class="grid"><div class="tile">🏙️<b>Ville</b>5 quartiers</div><div class="tile">⛽<b>Station</b>+ garage</div><div class="tile">🚛<b>Camions</b>trafic</div><div class="tile">✈️<b>Aéroport</b>pistes</div></div>
+<button onclick="location.href='game.html'">▶ JOUER</button><button id="install" class="secondary" style="display:none">📱 INSTALLER</button>
+<p class="small">Une fois publiée en HTTPS, l'application peut être installée sur l'écran d'accueil. Le mode « standalone » permet une apparence d'application dédiée.</p></div></main>
+<script>
+let deferred;addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;install.style.display='block'});
+install.onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null}};
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>

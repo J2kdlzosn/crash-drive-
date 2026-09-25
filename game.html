@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crash Drive 3 — Grande Ville</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#101722;color:#fff;font-family:system-ui,Arial}
+#ui{position:fixed;inset:0;pointer-events:none}.p{pointer-events:auto;background:#0b1220df;border:1px solid #ffffff20;border-radius:15px;padding:12px;backdrop-filter:blur(8px);box-shadow:0 8px 25px #0007}
+#menu{position:absolute;left:12px;top:12px;width:285px;max-height:calc(100% - 24px);overflow:auto}#hud{position:absolute;right:12px;top:12px;width:220px}#help{position:absolute;left:12px;bottom:12px;max-width:720px}
+h1{font-size:19px;margin:0 0 8px}h2{font-size:13px;color:#8fd5ff;margin:11px 0 5px}button,select{width:100%;box-sizing:border-box;margin:4px 0;padding:8px;border:1px solid #ffffff20;border-radius:9px;background:#17243a;color:#fff}button:hover{background:#28405f}.stat{display:flex;justify-content:space-between;margin:5px 0}.tag{display:inline-block;padding:3px 7px;background:#ffffff12;border-radius:7px;margin:2px;font-size:11px}
+</style>
+<style>
+#v5nav{position:fixed;left:10px;right:10px;bottom:10px;z-index:100;display:flex;gap:7px;pointer-events:auto}
+#v5nav button{flex:1;padding:10px 5px;border-radius:13px;background:#101a29e8;color:#fff;border:1px solid #ffffff22;font-weight:700}
+#v5nav button.active{background:#2d9cff}
+#touch{position:fixed;left:10px;right:10px;bottom:66px;z-index:99;display:flex;justify-content:space-between;pointer-events:none}
+.tb{pointer-events:auto;width:64px;height:64px;border-radius:18px;background:#101a29cc;color:#fff;border:1px solid #ffffff25;font-size:24px;touch-action:none}
+@media(min-width:800px){#v5nav,#touch{display:none}}
+@media(max-width:700px){#menu{max-height:43vh;width:220px;font-size:12px}#help{display:none}#hud{width:150px;font-size:12px}}
+</style>
+</head><body>
+<div id="ui">
+<div id="menu" class="p"><h1>🏙️ Crash Drive — Grande Ville</h1>
+<div id="sel">Twingo</div><h2>🚗 Véhicule</h2><div id="vehicles"></div>
+<h2>🎨 Couleur</h2><select id="paint"><option value="#e53935">Rouge</option><option value="#1976d2">Bleu</option><option value="#ffffff">Blanc</option><option value="#111111">Noir</option><option value="#ffd600">Jaune</option><option value="#43a047">Vert</option><option value="#ff6d00">Orange</option></select>
+<button id="go">▶ Conduire</button><button id="regen">🔄 Recréer la circulation</button></div>
+<div id="hud" class="p"><div class="stat"><span>Zone</span><b id="zone">Centre-ville</b></div><div class="stat"><span>Vitesse</span><b id="speed">0 km/h</b></div><div class="stat"><span>Dégâts</span><b id="damage">0%</b></div><div class="stat"><span>Trafic</span><b id="traffic">Normal</b></div></div>
+<div id="help" class="p"><b>ZQSD / flèches</b> conduire · <b>Espace</b> frein · <b>R</b> reset · <b>C</b> caméra · <b>V</b> changer de quartier · <b>T</b> trafic · <b>P</b> station-service · <b>G</b> garage<br>
+<span class="tag">centre-ville</span><span class="tag">quartier résidentiel</span><span class="tag">zone commerciale</span><span class="tag">zone industrielle</span><span class="tag">parc</span><span class="tag">gare</span><span class="tag">hôpital</span><span class="tag">école</span><span class="tag">station-service</span><span class="tag">parking</span></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+<script>
+const models=[["Twingo",80],["Clio",115],["208",120],["C3",100],["Golf",150],["Yaris",115],["Sandero",100],["Captur",130],["Berline",180],["Coupé",300],["Camion",280]];
+let choice={name:"Twingo",power:80},paint="#e53935",scene,camera,renderer,player,clock=new THREE.Clock(),vel=new THREE.Vector3(),yaw=0,damage=0,cam=0,trafficOn=true;
+const keys={},traffic=[],colliders=[];let quarter=0;
+addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=1;let k=e.key.toLowerCase();if(k=="r")reset();if(k=="c")cam=(cam+1)%3;if(k=="v"){quarter=(quarter+1)%5;reset()}if(k=="t"){trafficOn=!trafficOn;spawnTraffic()}if(k=="p")teleport("station");if(k=="g")teleport("garage")});
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=0);
+const V=document.getElementById("vehicles");models.forEach(m=>{let b=document.createElement("button");b.textContent=m[0]+" — "+m[1]+" ch";b.onclick=()=>{choice={name:m[0],power:m[1]};document.getElementById("sel").textContent=m[0];reset()};V.appendChild(b)});
+document.getElementById("paint").onchange=e=>{paint=e.target.value;reset()};document.getElementById("go").onclick=reset;document.getElementById("regen").onclick=spawnTraffic;
+
+function M(c){return new THREE.MeshStandardMaterial({color:c,roughness:.45,metalness:.12})}
+function B(w,h,d,m,x,y,z){let q=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);q.position.set(x,y,z);q.castShadow=true;return q}
+function car(){if(player)scene.remove(player);player=new THREE.Group();let m=M(paint),d=M(0x151515),g=M(0x263f54);
+if(choice.name=="Camion"){player.add(B(2.8,1.5,3,m,0,1.1,-2));player.add(B(2.7,2.4,6.5,M(0xd4d4d4),0,1.5,2));player.add(B(2.5,1.2,2.2,g,0,2,-2));for(let x of[-1,1])for(let z of[-3.2,-1.2,1.8,3.8]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,.3,14),d);w.rotation.z=Math.PI/2;w.position.set(x,.5,z);player.add(w)}}
+else{player.add(B(2.2,.75,4.3,m,0,1,0));player.add(B(1.8,.7,1.8,m,0,1.55,0));player.add(B(1.55,.4,1.45,g,0,1.8,.1));for(let x of[-1,1])for(let z of[-1.35,1.35]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.25,14),d);w.rotation.z=Math.PI/2;w.position.set(x,.5,z);player.add(w)}}
+scene.add(player)}
+function setup(){scene=new THREE.Scene();scene.background=new THREE.Color(0x91ceff);scene.fog=new THREE.Fog(0x91ceff,90,850);camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1500);renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;document.body.appendChild(renderer.domElement);scene.add(new THREE.HemisphereLight(0xffffff,0x43505d,1.5));let s=new THREE.DirectionalLight(0xffffff,2);s.position.set(100,180,80);s.castShadow=true;scene.add(s);world();addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)})}
+function world(){
+let ground=new THREE.Mesh(new THREE.PlaneGeometry(1500,1500),M(0x628257));ground.rotation.x=-Math.PI/2;scene.add(ground);
+// Grand quadrillage routier
+for(let x=-600;x<=600;x+=80){let r=B(18,.04,1300,M(0x30343a),x,.02,0);scene.add(r);for(let z=-600;z<=600;z+=22)scene.add(B(7,.05,.35,M(0xffffff),x,.05,z))}
+for(let z=-600;z<=600;z+=80){let r=B(1300,.04,18,M(0x30343a),0,.02,z);scene.add(r)}
+// Quartiers d'habitation
+for(let x=-520;x<=520;x+=80)for(let z=-520;z<=520;z+=80){if(Math.abs(x)<160&&Math.abs(z)<160)continue;let h=4+Math.random()*16;let b=B(48,h,48,M([0x8d969d,0xb1a28d,0x6f7b85,0xc5b9a5][Math.floor(Math.random()*4)]),x,h/2,z);scene.add(b);colliders.push(b)}
+// Centre : tours
+for(let i=0;i<16;i++){let x=-120+(i%4)*80,z=-120+Math.floor(i/4)*80,h=25+Math.random()*55;let b=B(40,h,40,M(0x66727d),x,h/2,z);scene.add(b);colliders.push(b)}
+// Park central
+let park=B(150,.05,120,M(0x3f7546),0,.04,230);scene.add(park);for(let i=0;i<45;i++){let t=new THREE.Mesh(new THREE.ConeGeometry(2,7,8),M(0x285c32));t.position.set((Math.random()-.5)*140,3.5,230+(Math.random()-.5)*105);scene.add(t)}
+// Mairie, école, hôpital, commissariat, pompiers
+building("🏛️ MAIRIE",-230,190,55,14,0x8d7663);building("ÉCOLE", -360,190,65,10,0xc9b27c);building("HÔPITAL",330,-210,90,18,0xd9dde1);building("POLICE",430,-210,45,9,0x667b92);building("POMPIERS",520,-210,55,10,0xd15b4b);
+// commerces + centre commercial
+building("CENTRE COMMERCIAL",360,330,130,16,0xb7b7b7);building("CINÉMA",520,330,55,12,0x5e536e);building("SUPERMARCHÉ",220,330,80,11,0x71865d);
+// gare
+building("GARE",-360,-300,110,16,0xa39a8c);let rail=B(1300,.05,7,M(0x252525),0,.06,-360);scene.add(rail);
+// station service + garage
+station(0,-330);building("GARAGE",120,-330,65,10,0x9b633c);
+// industrie
+for(let i=0;i<7;i++)building("USINE",360+i*70,-480,55,12,0x747474);
+// parkings
+for(let x of[-520,-420,420,520])parking(x,70);
+// pont
+let bridge=B(160,.9,25,M(0x65686b),-100,.7,-80);scene.add(bridge);
+// lampadaires
+for(let x=-600;x<=600;x+=80)for(let z=-600;z<=600;z+=80){let pole=B(.15,6,.15,M(0x303030),x,3,z);scene.add(pole);let l=new THREE.PointLight(0xffe8bd,.18,20);l.position.set(x,6,z);scene.add(l)}
+}
+function building(name,x,z,w,h,c){let b=B(w,h,w*.65,M(c),x,h/2,z);scene.add(b);let label=document.createElement("div");colliders.push(b)}
+function parking(x,z){let p=B(65,.03,45,M(0x44474b),x,.03,z);scene.add(p);for(let i=-25;i<=25;i+=13)scene.add(B(10,.04,.2,M(0xffffff),x+i,.05,z))}
+function station(x,z){building("STATION-SERVICE",x,z,58,7,0xd7d7d7);for(let i=-18;i<=18;i+=18){let pump=B(4,2,2,M(0xe5e5e5),x+i,1.2,z-13);scene.add(pump);let roof=B(55,.5,22,M(0xe63935),x,4.8,z-13);scene.add(roof)}}
+function spawnTraffic(){traffic.forEach(t=>scene.remove(t));traffic.length=0;if(!trafficOn){document.getElementById("traffic").textContent="Faible";return}document.getElementById("traffic").textContent="Normal";for(let i=0;i<28;i++){let g=new THREE.Group();g.add(B(1.8,.65,3.7,M([0x1565c0,0xf9a825,0xffffff,0x43a047,0xd32f2f,0x222222][i%6]),0,.8,0));g.position.set((Math.random()-.5)*1000,0,(Math.floor(Math.random()*15)-7)*40);g.userData.v=7+Math.random()*12;traffic.push(g);scene.add(g)}}
+function teleport(where){if(!player)return;player.position.set(where=="station"?0:120,0,where=="station"?-330:-330)}
+function reset(){car();let starts=[[-80,-80],[0,0],[160,0],[-240,0],[0,300]][quarter];player.position.set(starts[0],0,starts[1]);yaw=0;vel.set(0,0,0);damage=0;spawnTraffic();document.getElementById("zone").textContent=["Centre-ville","Quartier résidentiel","Zone commerciale","Zone industrielle","Parc"][quarter]}
+function loop(){requestAnimationFrame(loop);let dt=Math.min(.035,clock.getDelta()),st=(keys["q"]||keys["a"]||keys["arrowleft"]?-1:0)+(keys["d"]||keys["arrowright"]?1:0),th=(keys["z"]||keys["w"]||keys["arrowup"]?1:0)-(keys["s"]||keys["arrowdown"]?1:0);yaw-=st*dt*(1.5+vel.length()*.025);let f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));vel.addScaledVector(f,th*(choice.power/100)*21*dt);vel.multiplyScalar(Math.pow(keys[" "]?.80:.965,dt*60));let max=choice.name=="Camion"?21:32;if(vel.length()>max)vel.setLength(max);player.position.addScaledVector(vel,dt);player.position.y=0;player.rotation.y=yaw;
+traffic.forEach(t=>{t.position.x+=t.userData.v*dt;if(t.position.x>520)t.position.x=-520;if(t.position.distanceTo(player.position)<4){damage=Math.min(100,damage+dt*25);vel.multiplyScalar(.8)}});if(damage>=100)reset();
+document.getElementById("speed").textContent=Math.round(vel.length()*5.3)+" km/h";document.getElementById("damage").textContent=Math.round(damage)+"%";
+let tar=player.position.clone(),off;if(cam==0){off=new THREE.Vector3(0,7,-13).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);camera.position.lerp(tar.clone().add(off),.12);camera.lookAt(tar.clone().add(new THREE.Vector3(0,1,0)))}if(cam==1){camera.position.lerp(tar.clone().add(new THREE.Vector3(0,30,0)),.12);camera.lookAt(tar)}if(cam==2){camera.position.lerp(tar.clone().add(new THREE.Vector3(0,2,2)),.15);camera.lookAt(tar.clone().add(new THREE.Vector3(0,1,8).applyAxisAngle(new THREE.Vector3(0,1,0),yaw)))}renderer.render(scene,camera)}
+setup();reset();loop();
+</script>
+<div id="touch">
+ <div><button class="tb" data-k="q">◀</button><button class="tb" data-k="d">▶</button></div>
+ <div><button class="tb" data-k="s">▼</button><button class="tb" data-k="z">▲</button></div>
+</div>
+<div id="v5nav">
+ <button id="navHome">🏠</button><button id="navGarage">🚗</button><button id="navMap" class="active">🗺️</button><button id="navSettings">⚙️</button>
+</div>
+<script>
+document.querySelectorAll('.tb').forEach(b=>{
+ const k=b.dataset.k;
+ const down=e=>{e.preventDefault();keys[k]=1},up=e=>{e.preventDefault();keys[k]=0};
+ b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up);
+});
+document.getElementById('navHome').onclick=()=>window.scrollTo(0,0);
+document.getElementById('navGarage').onclick=()=>document.getElementById('menu').scrollIntoView({behavior:'smooth'});
+document.getElementById('navMap').onclick=()=>{};
+document.getElementById('navSettings').onclick=()=>alert('Paramètres : caméra avec C, trafic avec T, quartier avec V. Sur téléphone, utilise les boutons à l’écran.');
+</script>
+</body></html>
